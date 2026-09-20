@@ -93,12 +93,23 @@ private:
     asio::awaitable<void> handle_hello(SessionT& session, SessionState& st,
                                         const std::string& ticket, const std::string& username) {
         auto found_ticket = co_await store_client_->take(ticket);
-        if (!found_ticket) { session.close(); co_return; } // ticket invalide/expire/deja utilise
+
+        if (!found_ticket) {
+            session.close();
+            co_return;
+        }
 
         std::optional<accounts::AccountRecord> account;
+        bool account_lookup_failed = false;
+
         try {
             account = accounts_->find(username);
-        } catch (const std::exception&) {
+        }
+        catch (const std::exception&) {
+            account_lookup_failed = true;
+        }
+
+        if (account_lookup_failed) {
             co_await session.send(login_proto::encode_error());
             session.close();
             co_return;
